@@ -59,9 +59,9 @@ void preview_dft(bool verbose)
   getDft()->previewDft(verbose);
 }
 
-void scan_replace()
+void scan_replace(bool keep_pl)
 {
-  getDft()->scanReplace();
+  getDft()->scanReplace(keep_pl);
 }
 
 
