@@ -92,6 +92,10 @@ void set_dft_config_clock_mixing(const char* clock_mixing_ptr)
   }
 }
 
+void write_scan_chains(const char* filename) {
+  getDft()->writeScanChains(filename);
+}
+
 void report_dft_config() {
   getDft()->reportDftConfig();
 }
