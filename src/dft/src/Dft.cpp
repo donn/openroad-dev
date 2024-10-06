@@ -32,6 +32,8 @@
 
 #include "dft/Dft.hh"
 
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 #include <iostream>
 
 #include "ClockDomain.hh"
@@ -96,12 +98,49 @@ void Dft::previewDft(bool verbose)
   logger_->report("");
 }
 
-void Dft::scanReplace()
+void Dft::scanReplace(bool keep_pl)
 {
   if (need_to_run_pre_dft_) {
     pre_dft();
   }
-  scan_replace_->scanReplace();
+  scan_replace_->scanReplace(keep_pl);
+}
+
+void Dft::writeScanChains(std::string filename)
+{
+  using boost::property_tree::ptree;
+  if (need_to_run_pre_dft_) {
+    pre_dft();
+  }
+
+  std::ofstream json_file(filename);
+  if (!json_file.is_open()) {
+    logger_->error(
+        utl::DFT, 13, "Failed to open file {} for writing.", filename);
+  }
+  try {
+    ptree root;
+
+    std::vector<std::unique_ptr<ScanChain>> scan_chains = scanArchitect();
+
+    for (auto& chain : scan_chains) {
+      ptree current_chain;
+      ptree cells;
+      auto& scan_cells = chain->getScanCells();
+      for (auto& cell : scan_cells) {
+        ptree name;
+        name.put("", cell->getName());
+        cells.push_back(std::make_pair("", name));
+      }
+      current_chain.add_child("cells", cells);
+      root.add_child(chain->getName(), current_chain);
+    }
+
+    boost::property_tree::write_json(json_file, root);
+  } catch (std::exception& ex) {
+    logger_->error(
+        utl::DFT, 14, "Failed to write JSON report. Exception: {}", ex.what());
+  }
 }
 
 void Dft::insertDft()

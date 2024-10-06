@@ -47,15 +47,18 @@ proc preview_dft { args } {
   dft::preview_dft $verbose
 }
 
-sta::define_cmd_args "scan_replace" { }
+sta::define_cmd_args "scan_replace" {[-keep_pl]}
 proc scan_replace { args } {
   sta::parse_key_args "scan_replace" args \
-    keys {} flags {}
+    keys {} flags {-keep_pl}
 
   if { [ord::get_db_block] == "NULL" } {
     utl::error DFT 8 "No design block found."
   }
-  dft::scan_replace
+
+  set enable_keep_placement [expr [info exists flags(-keep_pl)]]
+
+  dft::scan_replace $enable_keep_placement
 }
 
 sta::define_cmd_args "insert_dft" { }

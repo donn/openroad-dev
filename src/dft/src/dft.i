@@ -59,9 +59,9 @@ void preview_dft(bool verbose)
   getDft()->previewDft(verbose);
 }
 
-void scan_replace()
+void scan_replace(bool keep_pl)
 {
-  getDft()->scanReplace();
+  getDft()->scanReplace(keep_pl);
 }
 
 
@@ -90,6 +90,10 @@ void set_dft_config_clock_mixing(const char* clock_mixing_ptr)
   } else {
     getLogger()->error(utl::DFT, 6, "Requested clock mixing config not valid");
   }
+}
+
+void write_scan_chains(const char* filename) {
+  getDft()->writeScanChains(filename);
 }
 
 void report_dft_config() {

@@ -79,7 +79,8 @@ odb::dbInst* ReplaceCell(
     odb::dbBlock* top_block,
     odb::dbInst* old_instance,
     odb::dbMaster* new_master,
-    const std::unordered_map<std::string, std::string>& port_mapping)
+    const std::unordered_map<std::string, std::string>& port_mapping,
+    bool keep_pl)
 {
   std::vector<std::tuple<std::string, odb::dbNet*>> port_name_to_net;
   PopulatePortNameToNet(old_instance, port_name_to_net);
@@ -87,6 +88,11 @@ odb::dbInst* ReplaceCell(
   odb::dbInst* new_instance
       = odb::dbInst::create(top_block, new_master, /*name=*/"tmp_scan_flop");
   std::string old_cell_name = old_instance->getName();
+
+  int x, y;
+  old_instance->getLocation(x, y);
+  auto orient = old_instance->getOrient();
+  auto placementStatus = old_instance->getPlacementStatus();
 
   // Delete the old cell
   odb::dbInst::destroy(old_instance);
@@ -96,6 +102,13 @@ odb::dbInst* ReplaceCell(
 
   // Rename as the old cell
   new_instance->rename(old_cell_name.c_str());
+
+  // Keep placement from old cell (if enabled)
+  if (keep_pl) {
+    new_instance->setLocation(x, y);
+    new_instance->setOrient(orient);
+    new_instance->setPlacementStatus(placementStatus);
+  }
 
   return new_instance;
 }

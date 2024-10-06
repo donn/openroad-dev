@@ -55,7 +55,14 @@ placement, as it changes the area of cells.
 
 ```tcl
 scan_replace
+    [-keep_pl]
 ```
+
+#### Options
+
+| Switch Name | Description |
+| ---- | ---- |
+| `-keep_pl` | If set, the placement status of the replacement scan flipflop is copied from the flipflop it replaces. Should alleviate the need for another global placement, but will require re-legalization. |
 
 ### Preview DFT
 

@@ -98,7 +98,7 @@ class ScanReplace
 
   // Perform the scan replacement of the non-scan cells into scan cells.
   // This method changes the design
-  void scanReplace();
+  void scanReplace(bool keep_pl);
 
   void rollbackScanReplace();
 
@@ -117,7 +117,7 @@ class ScanReplace
 
   // Performs the scan replacement on the given block iterating over the
   // internal blocks (if there is any)
-  void scanReplace(odb::dbBlock* block);
+  void scanReplace(odb::dbBlock* block, bool keep_pl);
 
   // Rollsback the scan replace, replacing the cells with their old master.
   void rollbackScanReplace(odb::dbBlock* block);

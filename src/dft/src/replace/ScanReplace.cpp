@@ -327,16 +327,16 @@ ScanReplace::ScanReplace(odb::dbDatabase* db,
   db_network_ = sta->getDbNetwork();
 }
 
-void ScanReplace::scanReplace()
+void ScanReplace::scanReplace(bool keep_pl)
 {
   odb::dbChip* chip = db_->getChip();
-  scanReplace(chip->getBlock());
+  scanReplace(chip->getBlock(), keep_pl);
   sta_->networkChanged();
 }
 
 // Recursive function that iterates over a block (and the blocks inside this
 // one) replacing the cells with scan equivalent
-void ScanReplace::scanReplace(odb::dbBlock* block)
+void ScanReplace::scanReplace(odb::dbBlock* block, bool keep_pl)
 {
   std::unordered_set<odb::dbInst*> already_replaced;
   std::unordered_set<odb::dbMaster*> no_lib_warned;
@@ -410,8 +410,11 @@ void ScanReplace::scanReplace(odb::dbBlock* block)
     sta::LibertyCell* scan_cell = scan_candidate->getScanCell();
     odb::dbMaster* master_scan_cell = db_network_->staToDb(scan_cell);
 
-    odb::dbInst* new_cell = utils::ReplaceCell(
-        block, inst, master_scan_cell, scan_candidate->getPortMapping());
+    odb::dbInst* new_cell = utils::ReplaceCell(block,
+                                               inst,
+                                               master_scan_cell,
+                                               scan_candidate->getPortMapping(),
+                                               keep_pl);
 
     already_replaced.insert(new_cell);
     addCellForRollback(master, master_scan_cell, scan_candidate);
@@ -419,7 +422,7 @@ void ScanReplace::scanReplace(odb::dbBlock* block)
 
   // Recursive iterate inside the block to look for inside hiers
   for (odb::dbBlock* next_block : block->getChildren()) {
-    scanReplace(next_block);
+    scanReplace(next_block, keep_pl);
   }
 }
 
