@@ -33,6 +33,7 @@
 #include "dft/MakeDft.hh"
 
 #include "DftConfig.hh"
+#include "ScanBoundary.hh"
 #include "ScanReplace.hh"
 #include "dft/Dft.hh"
 #include "ord/OpenRoad.hh"

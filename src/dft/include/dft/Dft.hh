@@ -31,6 +31,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
+#include "ClockDomain.hh"
+#include "ResetDomain.hh"
 #include "db_sta/dbSta.hh"
 #include "odb/db.h"
 #include "utl/Logger.h"
@@ -39,6 +41,8 @@ namespace dft {
 class ScanReplace;
 class DftConfig;
 class ScanChain;
+class ScanBoundary;
+struct MuxInfo;
 
 // The main DFT implementation.
 //
@@ -95,7 +99,18 @@ class Dft
   //
   void scanReplace(bool keep_pl);
 
-  void insertDft();
+  void insertBoundaryScanRegisters(const char* clock_name,
+                                  dft::ClockEdge clock_edge,
+                                  const char* reset_name,
+                                  dft::ResetActiveEdge reset_active,
+                                  dft::MuxInfo &input_mux,
+                                  const char* testing_net,
+                                  sta::PatternMatch* ignore_ports_rx = nullptr);
+
+  void insertDft(bool per_chain_enable,
+                 std::string scan_enable_name_pattern,
+                 std::string scan_in_name_pattern,
+                 std::string scan_out_name_pattern);
 
   // Returns a mutable version of DftConfig
   DftConfig* getMutableDftConfig();
@@ -108,7 +123,6 @@ class Dft
 
   // Writes scan chains in a JSON format
   void writeScanChains(std::string filename);
-  
 
  private:
   // If we need to run pre_dft to create the internal state
@@ -128,6 +142,7 @@ class Dft
 
   // Internal state
   std::unique_ptr<ScanReplace> scan_replace_;
+  std::unique_ptr<ScanBoundary> scan_boundary_;
   std::unique_ptr<DftConfig> dft_config_;
 };
 

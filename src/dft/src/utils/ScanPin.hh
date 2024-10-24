@@ -53,7 +53,6 @@ class ScanPin
  public:
   explicit ScanPin(odb::dbITerm* iterm);
   explicit ScanPin(odb::dbBTerm* bterm);
-  ScanPin(const ScanPin&) = delete;  // no copy
 
   odb::dbNet* getNet() const;
   std::string_view getName() const;
@@ -69,7 +68,6 @@ class ScanLoad : public ScanPin
  public:
   explicit ScanLoad(odb::dbITerm* iterm);
   explicit ScanLoad(odb::dbBTerm* bterm);
-  ScanLoad(const ScanLoad&) = delete;  // no copy
 };
 
 // Typesafe wrapper for driver pins
@@ -78,7 +76,6 @@ class ScanDriver : public ScanPin
  public:
   explicit ScanDriver(odb::dbITerm* iterm);
   explicit ScanDriver(odb::dbBTerm* bterm);
-  ScanDriver(const ScanDriver&) = delete;  // no copy
 };
 
 }  // namespace dft

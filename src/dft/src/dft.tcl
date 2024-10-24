@@ -29,7 +29,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-sta::define_cmd_args "preview_dft" { [-verbose]}
+sta::define_cmd_args "preview_dft" {[-verbose]}
 
 proc preview_dft { args } {
   sta::parse_key_args "preview_dft" args \
@@ -74,15 +74,104 @@ proc write_scan_chains { args } {
 }
 
 
-sta::define_cmd_args "insert_dft" { }
+sta::define_cmd_args "insert_boundary_scan_registers" {
+  [-clock_name clock_name]
+  [-clock_edge clock_edge]
+  [-reset_name reset_name]
+  [-reset_active reset_active]
+  [-input_mux input_mux_str]
+}
+proc insert_boundary_scan_registers { args } {
+  set key_list {
+    -clock_name
+    -clock_edge
+    -reset_name
+    -reset_active
+    -input_mux
+    -testing_net
+  }
+  sta::parse_key_args "insert_boundary_scan_registers" args \
+    keys "$key_list -ignore_ports_rx" flags {}
+
+  if { [ord::get_db_block] == "NULL" } {
+    utl::error DFT 16 "No design block found."
+  }
+  
+  foreach key $key_list {
+    if { ![info exists keys($key)] } {
+      utl::error DFT 19 "Required key $key not provided."
+    }
+  }
+  
+  set ignored_ports_pattern ""
+  if { [info exists keys(-ignore_ports_rx)] } {
+    set ignored_ports_pattern "$keys(-ignore_ports_rx)"
+  }
+  
+  set input_mux_elements [split $keys(-input_mux) "/"]
+  if { [llength $input_mux_elements] != 5 } {
+    utl::error DFT 20 "Invalid multiplexer specification: [llength $input_mux_elements]/5 elements provided."
+  }
+  
+  lassign "$input_mux_elements" master s a0 a1 y
+  set input_mux [[::ord::get_db] findMaster $master]
+  if { "$input_mux" == "NULL" } {
+    utl::error DFT 21 "Unknown cell '$master'."
+  }
+  set input_mux_s [$input_mux findMTerm $s]
+  if { "$input_mux_s" == "NULL" } {
+    utl::error DFT 22 "Selection input '$s' not found for '$master'."
+  }
+  set input_mux_a0 [$input_mux findMTerm $a0]
+  if { "$input_mux_a0" == "NULL" } {
+    utl::error DFT 23 "Multiplexed input '$a0' not found for '$master'."
+  }
+  set input_mux_a1 [$input_mux findMTerm $a1]
+  if { "$input_mux_a1" == "NULL" } {
+    utl::error DFT 24 "Multiplexed input '$a1' not found for '$master'."
+  }
+  set input_mux_y [$input_mux findMTerm $y]
+  if { "$input_mux_y" == "NULL" } {
+    utl::error DFT 25 "Multiplexed output '$y' not found for '$master'."
+  }
+  
+  dft::insert_boundary_scan_registers\
+    $keys(-clock_name) $keys(-clock_edge)\
+    $keys(-reset_name) $keys(-reset_active)\
+    $input_mux $input_mux_s $input_mux_a0 $input_mux_a1 $input_mux_y\
+    $keys(-testing_net)\
+    $ignored_ports_pattern
+}
+
+sta::define_cmd_args "insert_dft" {
+  [-per_chain_enable]
+  [-scan_enable_name_pattern scan_enable_name_pattern]
+  [-scan_in_name_pattern scan_in_name_pattern]
+  [-scan_out_name_pattern scan_out_name_pattern]
+}
 proc insert_dft { args } {
   sta::parse_key_args "insert_dft" args \
-    keys {} flags {}
+    keys {-scan_enable_name_pattern -scan_in_name_pattern -scan_out_name_pattern}\
+    flags {-per_chain_enable}
 
   if { [ord::get_db_block] == "NULL" } {
     utl::error DFT 9 "No design block found."
   }
-  dft::insert_dft
+  
+  foreach {flag default} {
+    -scan_enable_name_pattern "scan_enable_{}"
+    -scan_in_name_pattern "scan_in_{}"
+    -scan_out_name_pattern "scan_out_{}"
+  } {
+    if { ![info exists keys($flag)] } {
+      set keys($flag) $default
+    }
+  }
+  
+  dft::insert_dft [info exists $flags(-per_chain_enable)]\
+    $keys(-scan_enable_name_pattern)\
+    $keys(-scan_in_name_pattern)\
+    $keys(-scan_out_name_pattern)
 }
 
 sta::define_cmd_args "set_dft_config" { [-max_length max_length] \

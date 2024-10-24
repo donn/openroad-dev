@@ -36,8 +36,12 @@
 
 #include "dft/Dft.hh"
 #include "DftConfig.hh"
+#include "sta/PatternMatch.hh"
 #include "ord/OpenRoad.hh"
 #include "ScanArchitect.hh"
+#include "ScanBoundary.hh"
+#include "ClockDomain.hh"
+#include "ResetDomain.hh"
 
 dft::Dft * getDft()
 {
@@ -51,6 +55,48 @@ utl::Logger* getLogger()
 
 %}
 
+%include "../../Exception.i"
+
+%typemap(typecheck) dft::ResetActiveEdge {
+  char *str = Tcl_GetStringFromObj($input, 0);
+    if (strcasecmp(str, "LOW") == 0) {
+    $1 = 1;
+  } else if (strcasecmp(str, "HIGH") == 0) {
+    $1 = 1;
+  } else {
+    $1 = 0;
+  }
+}
+
+%typemap(in) dft::ResetActiveEdge {
+  char *str = Tcl_GetStringFromObj($input, 0);
+  if (strcasecmp(str, "LOW") == 0) {
+    $1 = dft::ResetActiveEdge::Low;
+  } else /* other values eliminated in typecheck */ {
+    $1 = dft::ResetActiveEdge::High;
+  };
+}
+
+%typemap(typecheck) dft::ClockEdge {
+  char *str = Tcl_GetStringFromObj($input, 0);
+    if (strcasecmp(str, "RISING") == 0) {
+    $1 = 1;
+  } else if (strcasecmp(str, "FALLING") == 0) {
+    $1 = 1;
+  } else {
+    $1 = 0;
+  }
+}
+
+%typemap(in) dft::ClockEdge {
+  char *str = Tcl_GetStringFromObj($input, 0);
+  if (strcasecmp(str, "FALLING") == 0) {
+    $1 = dft::ClockEdge::Falling;
+  } else /* other values eliminated in typecheck */ {
+    $1 = dft::ClockEdge::Rising;
+  };
+}
+
 %inline
 %{
 
@@ -59,15 +105,45 @@ void preview_dft(bool verbose)
   getDft()->previewDft(verbose);
 }
 
-void scan_replace(bool keep_pl)
+void scan_replace(bool keep_pl) // , dft::ClockDomain *limit_to_clock_domain)
 {
   getDft()->scanReplace(keep_pl);
 }
 
-
-void insert_dft()
+void insert_boundary_scan_registers(const char *clock_name,
+                                    dft::ClockEdge clock_edge,
+                                    const char *reset_name,
+                                    dft::ResetActiveEdge reset_active,
+                                    odb::dbMaster *input_mux,
+                                    odb::dbMTerm *input_mux_s,
+                                    odb::dbMTerm *input_mux_a0,
+                                    odb::dbMTerm *input_mux_a1,
+                                    odb::dbMTerm *input_mux_y,
+                                    const char *testing_net,
+                                    const char* ignore_ports)
 {
-  getDft()->insertDft();
+  auto mux_info = dft::MuxInfo {
+    input_mux,
+    input_mux_s,
+    input_mux_a0,
+    input_mux_a1,
+    input_mux_y
+  };
+  auto ignore_ports_rx_local = sta::PatternMatch(ignore_ports, true, false, nullptr);
+  auto ignore_ports_rx = &ignore_ports_rx_local;
+  
+  if (strlen(ignore_ports) == 0) {
+    ignore_ports_rx = nullptr;
+  }
+  getDft()->insertBoundaryScanRegisters(clock_name, clock_edge, reset_name, reset_active, mux_info, testing_net, ignore_ports_rx);
+}
+
+void insert_dft(bool per_chain_enable,
+                const char *scan_enable_name_pattern,
+                const char *scan_in_name_pattern,
+                const char *scan_out_name_pattern)
+{
+  getDft()->insertDft(per_chain_enable, scan_enable_name_pattern, scan_in_name_pattern, scan_out_name_pattern);
 }
 
 void set_dft_config_max_length(int max_length)

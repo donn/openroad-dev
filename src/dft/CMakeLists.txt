@@ -67,9 +67,11 @@ target_link_libraries(dft
   PRIVATE
     dft_cells_lib
     dft_architect_lib
+    dft_bscan_lib
     dft_config_lib
     dft_replace_lib
     dft_clock_domain_lib
+    dft_reset_domain_lib
     dft_utils_lib
     dft_stitch_lib
 )
@@ -101,10 +103,12 @@ endif()
 
 # Keep sorted
 add_subdirectory(src/architect)
+add_subdirectory(src/bscan)
 add_subdirectory(src/cells)
 add_subdirectory(src/clock_domain)
 add_subdirectory(src/config)
 add_subdirectory(src/replace)
+add_subdirectory(src/reset_domain)
 add_subdirectory(src/stitch)
 add_subdirectory(src/utils)
 if(ENABLE_TESTS)

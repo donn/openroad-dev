@@ -3,24 +3,26 @@
 #include <deque>
 #include <iostream>
 
-namespace {
-
-constexpr std::string_view kScanEnableNamePattern = "scan_enable_{}";
-constexpr std::string_view kScanInNamePattern = "scan_in_{}";
-constexpr std::string_view kScanOutNamePattern = "scan_out_{}";
-
-}  // namespace
-
 namespace dft {
 
-ScanStitch::ScanStitch(odb::dbDatabase* db) : db_(db)
+ScanStitch::ScanStitch(odb::dbDatabase* db,
+                       bool per_chain_enable,
+                       std::string scan_enable_name_pattern,
+                       std::string scan_in_name_pattern,
+                       std::string scan_out_name_pattern)
+    : db_(db),
+      per_chain_enable_(per_chain_enable),
+      scan_enable_name_pattern_(scan_enable_name_pattern),
+      scan_in_name_pattern_(scan_in_name_pattern),
+      scan_out_name_pattern_(scan_out_name_pattern)
 {
   odb::dbChip* chip = db_->getChip();
   top_block_ = chip->getBlock();
 }
 
 void ScanStitch::Stitch(
-    const std::vector<std::unique_ptr<ScanChain>>& scan_chains)
+    const std::vector<std::unique_ptr<ScanChain>>& scan_chains,
+    utl::Logger* logger)
 {
   // TODO: For now, we only use one scan enable for all the chains. We may
   // support in the future multiple test modes
@@ -28,23 +30,34 @@ void ScanStitch::Stitch(
     return;
   }
 
-  ScanDriver scan_enable = FindOrCreateScanEnable(top_block_);
-  odb::dbChip* chip = db_->getChip();
-  odb::dbBlock* block = chip->getBlock();
+  auto scanEnableName = fmt::format(FMT_RUNTIME(scan_enable_name_pattern_), 0);
 
+  std::optional<ScanDriver> scan_enable = std::nullopt;
+  if (!per_chain_enable_) {
+    scan_enable = FindOrCreateScanEnable(top_block_, scanEnableName, logger);
+  }
+
+  size_t ordinal = 0;
   for (const std::unique_ptr<ScanChain>& scan_chain : scan_chains) {
-    Stitch(block, *scan_chain, scan_enable);
+    Stitch(top_block_, *scan_chain, scan_enable, logger, ordinal++);
   }
 }
 
 void ScanStitch::Stitch(odb::dbBlock* block,
                         const ScanChain& scan_chain,
-                        const ScanDriver& scan_enable)
+                        const std::optional<ScanDriver>& scan_enable_opt,
+                        utl::Logger* logger,
+                        size_t ordinal)
 {
+  auto scan_enable_name
+      = fmt::format(FMT_RUNTIME(scan_enable_name_pattern_), ordinal);
+  auto scan_enable = scan_enable_opt.value_or(
+      FindOrCreateScanEnable(block, scan_enable_name, logger));
+
   // Let's create the scan in and scan out of the chain
   // TODO: Suport user defined scan signals
-
-  ScanDriver scan_in_port = FindOrCreateScanIn(block);
+  auto scan_in_name = fmt::format(FMT_RUNTIME(scan_in_name_pattern_), ordinal);
+  ScanDriver scan_in_port = FindOrCreateScanIn(block, scan_in_name, logger);
 
   // We need fast pop for front and back
   std::deque<std::reference_wrapper<const std::unique_ptr<ScanCell>>>
@@ -95,30 +108,75 @@ void ScanStitch::Stitch(odb::dbBlock* block,
   }
 
   // Let's connect the last cell
-  ScanLoad scan_out_port
-      = FindOrCreateScanOut(block, last_scan_cell->getScanOut());
+  auto scan_out_name
+      = fmt::format(FMT_RUNTIME(scan_out_name_pattern_), ordinal);
+  ScanLoad scan_out_port = FindOrCreateScanOut(
+      block, last_scan_cell->getScanOut(), scan_out_name, logger);
   last_scan_cell->connectScanOut(scan_out_port);
 }
 
-ScanDriver ScanStitch::FindOrCreateScanEnable(odb::dbBlock* block)
+ScanDriver ScanStitch::FindOrCreateScanEnable(odb::dbBlock* block,
+                                              std::string with_name,
+                                              utl::Logger* logger)
 {
-  // TODO: For now we will create a new scan_enable pin at the top level. We
-  // need to support defining DFT signals for scan_enable
-  return CreateNewPort<ScanDriver>(block, kScanEnableNamePattern);
+  auto net = block->findNet(with_name.data());
+  if (net != nullptr) {
+    for (auto bterm : net->getBTerms()) {
+      if (bterm->getIoType() == odb::dbIoType::INPUT) {
+        return ScanDriver(bterm);
+      }
+    }
+    for (auto iterm : net->getITerms()) {
+      if (iterm->getIoType() == odb::dbIoType::OUTPUT) {
+        return ScanDriver(iterm);
+      }
+    }
+  }
+
+  return CreateNewPort<ScanDriver>(block, with_name, logger, net);
 }
 
-ScanDriver ScanStitch::FindOrCreateScanIn(odb::dbBlock* block)
+ScanDriver ScanStitch::FindOrCreateScanIn(odb::dbBlock* block,
+                                          std::string with_name,
+                                          utl::Logger* logger)
 {
-  // TODO: For now we will create a new scan_in pin at the top level. We
-  // need to support defining DFT signals for scan_in
-  return CreateNewPort<ScanDriver>(block, kScanInNamePattern);
+  auto net = block->findNet(with_name.data());
+  if (net != nullptr) {
+    for (auto bterm : net->getBTerms()) {
+      if (bterm->getIoType() == odb::dbIoType::INPUT) {
+        return ScanDriver(bterm);
+      }
+    }
+    for (auto iterm : net->getITerms()) {
+      if (iterm->getIoType() == odb::dbIoType::OUTPUT) {
+        return ScanDriver(iterm);
+      }
+    }
+  }
+
+  return CreateNewPort<ScanDriver>(block, with_name, logger, net);
 }
 
 ScanLoad ScanStitch::FindOrCreateScanOut(odb::dbBlock* block,
-                                         const ScanDriver& cell_scan_out)
+                                         const ScanDriver& cell_scan_out,
+                                         std::string with_name,
+                                         utl::Logger* logger)
 {
   // TODO: For now we will create a new scan_out pin at the top level if we need
   // one. We need to support defining DFT signals for scan_out
+  auto net = block->findNet(with_name.data());
+  if (net != nullptr) {
+    for (auto bterm : net->getBTerms()) {
+      if (bterm->getIoType() == odb::dbIoType::OUTPUT) {
+        return ScanLoad(bterm);
+      }
+    }
+    for (auto iterm : net->getITerms()) {
+      if (iterm->getIoType() == odb::dbIoType::INPUT) {
+        return ScanLoad(iterm);
+      }
+    }
+  }
 
   // TODO: Trace forward the scan out net so we can see if it is connected to a
   // top port or to functional logic
@@ -129,12 +187,14 @@ ScanLoad ScanStitch::FindOrCreateScanOut(odb::dbBlock* block,
     // is the top block, otherwise we will punch a new port
     for (odb::dbBTerm* bterm : scan_out_net->getBTerms()) {
       if (bterm->getIoType() == odb::dbIoType::OUTPUT) {
+        net = odb::dbNet::create(block, with_name.c_str());
+        bterm->connect(net);
         return ScanLoad(bterm);
       }
     }
   }
 
-  return CreateNewPort<ScanLoad>(block, kScanOutNamePattern);
+  return CreateNewPort<ScanLoad>(block, with_name, logger, net);
 }
 
 }  // namespace dft

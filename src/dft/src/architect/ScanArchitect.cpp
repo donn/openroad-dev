@@ -195,6 +195,27 @@ void ScanArchitect::createScanChains()
   }
 }
 
+void ScanArchitect::tryUseClockNames()
+{
+  if (config_.getClockMixing() != ScanArchitectConfig::ClockMixing::NoMix) {
+    return;
+  }
+
+  for (auto& [hash_domain, chains] : hash_domain_scan_chains_) {
+    size_t ordinal = 0;
+    for (auto& chain : chains) {
+      std::string postfix = fmt::format("{}", ordinal++);
+      auto& cell = chain->getScanCells()[0];
+      auto& domain = cell->getClockDomain();
+      auto new_name = fmt::format("{}_{}_{}",
+                                  domain.getClockName(),
+                                  domain.getClockEdgeName(),
+                                  postfix);
+      chain->rename(new_name);
+    }
+  }
+}
+
 std::vector<std::unique_ptr<ScanChain>> ScanArchitect::getScanChains()
 {
   std::vector<std::unique_ptr<ScanChain>> scan_chains_flat;

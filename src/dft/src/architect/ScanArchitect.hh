@@ -92,6 +92,7 @@ class ScanArchitect
 
   // Init the Scan Architect
   virtual void init();
+  virtual void tryUseClockNames();
 
   // Performs the Scan Architect. Implement the bin packing solver here.
   virtual void architect() = 0;

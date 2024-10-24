@@ -139,4 +139,36 @@ std::optional<sta::Clock*> GetClock(sta::dbSta* sta, odb::dbITerm* iterm)
   return std::nullopt;
 }
 
+bool IsScanCell(const sta::LibertyCell* libertyCell)
+{
+  const sta::TestCell* test_cell = libertyCell->testCell();
+  if (test_cell) {
+    return test_cell->scanIn() != nullptr && test_cell->scanEnable() != nullptr;
+  }
+  return false;
+}
+odb::dbBTerm* CreateNewPort(odb::dbBlock* block,
+                            std::string port_name,
+                            utl::Logger* logger,
+                            std::string_view port_kind,
+                            odb::dbNet* net
+                            )
+{
+    if (!net) {
+        net = odb::dbNet::create(block, port_name.c_str());
+        net->setSigType(odb::dbSigType::SCAN);
+    }
+    auto port = odb::dbBTerm::create(net, port_name.c_str());
+    if (port == nullptr) {
+        logger->error(utl::DFT,
+                    18,
+                    "A non-{} port named '{}' already exists",
+                    port_kind,
+                    port_name);
+    }
+    port->setSigType(odb::dbSigType::SCAN);
+    
+    return port;
+}
+
 }  // namespace dft::utils

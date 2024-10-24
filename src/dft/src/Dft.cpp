@@ -39,6 +39,7 @@
 #include "ClockDomain.hh"
 #include "DftConfig.hh"
 #include "ScanArchitect.hh"
+#include "ScanBoundary.hh"
 #include "ScanCell.hh"
 #include "ScanCellFactory.hh"
 #include "ScanReplace.hh"
@@ -72,6 +73,7 @@ void Dft::pre_dft()
 {
   scan_replace_ = std::make_unique<ScanReplace>(db_, sta_, logger_);
   scan_replace_->collectScanCellAvailable();
+  scan_boundary_ = std::make_unique<ScanBoundary>(db_, sta_, logger_);
 
   // This should always be at the end
   need_to_run_pre_dft_ = false;
@@ -104,6 +106,20 @@ void Dft::scanReplace(bool keep_pl)
     pre_dft();
   }
   scan_replace_->scanReplace(keep_pl);
+}
+
+void Dft::insertBoundaryScanRegisters(const char* clock_name,
+                                      dft::ClockEdge clock_edge,
+                                      const char* reset_name,
+                                      dft::ResetActiveEdge reset_active,
+                                      dft::MuxInfo &input_mux,
+                                      const char* testing_net,
+                                      sta::PatternMatch* ignore_ports_rx)
+{
+  dft::ClockDomain clock_domain(clock_name, clock_edge);
+  dft::ResetDomain reset_domain(reset_name, reset_active);
+  auto block = db_->getChip()->getBlock();
+  scan_boundary_->addBoundaryScanRegisters(block, clock_domain, reset_domain, input_mux, testing_net, ignore_ports_rx);
 }
 
 void Dft::writeScanChains(std::string filename)
@@ -143,15 +159,22 @@ void Dft::writeScanChains(std::string filename)
   }
 }
 
-void Dft::insertDft()
+void Dft::insertDft(bool per_chain_enable,
+                    std::string scan_enable_name_pattern,
+                    std::string scan_in_name_pattern,
+                    std::string scan_out_name_pattern)
 {
   if (need_to_run_pre_dft_) {
     pre_dft();
   }
   std::vector<std::unique_ptr<ScanChain>> scan_chains = scanArchitect();
 
-  ScanStitch stitch(db_);
-  stitch.Stitch(scan_chains);
+  ScanStitch stitch(db_,
+                    per_chain_enable,
+                    scan_enable_name_pattern,
+                    scan_in_name_pattern,
+                    scan_out_name_pattern);
+  stitch.Stitch(scan_chains, logger_);
 }
 
 DftConfig* Dft::getMutableDftConfig()
@@ -187,6 +210,7 @@ std::vector<std::unique_ptr<ScanChain>> Dft::scanArchitect()
           logger_);
   scan_architect->init();
   scan_architect->architect();
+  scan_architect->tryUseClockNames();
 
   return scan_architect->getScanChains();
 }
